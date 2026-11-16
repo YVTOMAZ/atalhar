@@ -1,6 +1,5 @@
 """Livro-caixa local em SQLite."""
 
-import json
 import os
 import re
 import sqlite3

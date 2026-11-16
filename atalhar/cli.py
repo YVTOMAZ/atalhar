@@ -6,12 +6,8 @@ import sys
 
 from . import __version__
 from .fingerprint import fingerprint, sanitize_url
-from .ledger import connect, data_dir, init_db, insert_execucao, log_execucao, now_iso, redact_nota
+from .ledger import init_db, log_execucao, redact_nota
 from .importers.opencode import import_opencode
-
-
-def _print(msg):
-    print(msg)
 
 
 def cmd_version(args):
