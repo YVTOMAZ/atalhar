@@ -175,7 +175,6 @@ def _record(tool, inp, obj, toks, db_path):
 def import_opencode(path, db_path=None) -> dict:
     imported = 0
     ignored = 0
-    pending_tokens = None  # tokens vistos antes da ferramenta (formato antigo)
     pending_tools = []  # ferramentas aguardando step-finish (formato real)
     p = Path(path)
     with p.open("r", encoding="utf-8") as f:
@@ -202,11 +201,6 @@ def import_opencode(path, db_path=None) -> dict:
                     # tokens na mesma linha (formato sintetico antigo)
                     _record(tool, inp, obj, toks, db_path)
                     imported += 1
-                elif pending_tokens is not None:
-                    # step-finish antes da ferramenta
-                    _record(tool, inp, obj, pending_tokens, db_path)
-                    pending_tokens = None
-                    imported += 1
                 else:
                     # formato real: aguarda step-finish seguinte
                     pending_tools.append((tool, inp, obj))
@@ -216,12 +210,15 @@ def import_opencode(path, db_path=None) -> dict:
             if has_tokens:
                 if pending_tools:
                     # formato real: atrela tokens do step-finish as ferramentas do mesmo passo
+                    # shortcut: se um passo contiver varias tool_use, o total do passo e
+                    # atribuido a cada uma; nos dados reais a razao e ~1:1 (52/53),
+                    # impacto desprezivel. Quando houver passos com N>1 tools, revisar.
                     for tool, inp, tobj in pending_tools:
                         _record(tool, inp, tobj, toks, db_path)
                         imported += 1
                     pending_tools = []
-                else:
-                    pending_tokens = toks
+                # else: step_finish sem ferramenta pendente (passo vazio/texto):
+                # descartar tokens, nao atribuir a ferramenta posterior.
             else:
                 ignored += 1
 
