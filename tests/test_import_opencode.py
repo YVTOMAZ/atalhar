@@ -94,3 +94,42 @@ def test_import_opencode_different_tasks_different_fingerprint():
     fps = [r[0] for r in conn.execute("SELECT impressao_digital FROM execucoes").fetchall()]
     conn.close()
     assert len(set(fps)) == 2
+
+
+def test_import_opencode_discards_tokens_from_empty_step():
+    events = [
+        _step_finish({"input": 777, "output": 11}),
+        _tool_use("shell", {"command": "echo hi"}),
+        _step_finish({"input": 999, "output": 22}),
+    ]
+    p, d = _write_events(events)
+    db = os.path.join(d, "t.db")
+    init_db(db)
+    res = import_opencode(p, db_path=db)
+    assert res == {"imported": 1, "ignored": 0}
+    conn = connect(db)
+    rows = conn.execute("SELECT tokens_entrada, tokens_saida FROM execucoes").fetchall()
+    conn.close()
+    assert len(rows) == 1
+    assert rows[0]["tokens_entrada"] == 999
+    assert rows[0]["tokens_saida"] == 22
+
+
+def test_import_opencode_text_step_between_tools_does_not_leak_tokens():
+    events = [
+        _tool_use("shell", {"command": "echo first"}),
+        _step_finish({"input": 100, "output": 5, "cache": {"read": 0, "write": 0}}),
+        json.dumps({"type": "text", "part": {"type": "text"}}),
+        _step_finish({"input": 777, "output": 11}),
+        _tool_use("shell", {"command": "echo second"}),
+        _step_finish({"input": 200, "output": 9}),
+    ]
+    p, d = _write_events(events)
+    db = os.path.join(d, "t.db")
+    init_db(db)
+    res = import_opencode(p, db_path=db)
+    assert res["imported"] == 2
+    conn = connect(db)
+    rows = conn.execute("SELECT tokens_entrada FROM execucoes ORDER BY id").fetchall()
+    conn.close()
+    assert [r["tokens_entrada"] for r in rows] == [100, 200]
