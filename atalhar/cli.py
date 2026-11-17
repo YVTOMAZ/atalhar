@@ -302,7 +302,7 @@ def cmd_estimate(args):
         print(f"erro: arquivo de precos nao encontrado: {args.precos}", file=sys.stderr)
         return 2
     pm, moeda, cota = _resolver_precos(args)
-    if args.modelo is not None and pm is None and args.precos is not None:
+    if args.precos is not None and pm is None and cota is None:
         return 2
 
     try:
@@ -328,17 +328,21 @@ def cmd_estimate(args):
     # texto
     print(f"impressao: {res['impressao_digital']}")
     print(f"metrica principal: {res['metrica_principal']}")
-    print(f"custo_ia_exec: {res['custo_ia_exec']} tokens")
+    print(f"custo_ia_exec: {int(round(res['custo_ia_exec']))} tokens")
     print(f"execucoes_semana: {res['execucoes_semana']}")
     scen_txt = []
     for sc in res["cenarios"]:
-        q = int(sc["q"] * 100) if float(sc["q"]).is_integer() else sc["q"]
+        q = int(round(sc["q"] * 100))
         val = sc["economia_semana"]
         if val is None:
             val = "sem medição"
+        else:
+            val = int(round(val))
         scen_txt.append(f"{q}%: {val}")
+    _first = res["cenarios"][0].get("economia_semana") if res["cenarios"] else None
+    _first_txt = int(round(_first)) if _first is not None else "sem medição"
     print("Economia estimada: ~{} tokens por semana (cenários de quebra: {})".format(
-        res["cenarios"][0].get("economia_semana") if res["cenarios"] and res["cenarios"][0].get("economia_semana") is not None else "sem medição",
+        _first_txt,
         ", ".join(scen_txt),
     ))
     if res.get("preco") is None:
