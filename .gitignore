@@ -14,3 +14,4 @@ atalhar.db
 .DS_Store
 .venv310/
 .venv*/
+precos.toml
