@@ -1,0 +1,12 @@
+# Copie para precos.toml (ignorado pelo Git) ou para $ATALHAR_HOME/precos.toml.
+# O atalhar NAO traz precos. Preencha com o valor que voce consultou na pagina
+# oficial do provedor e anote a data. Unidade: moeda por 1 milhao de tokens.
+[geral]
+moeda = "USD"
+# cota_semanal_tokens = 0   # opcional; se > 0, a saida mostra % da cota
+
+[modelos."exemplo-local"]
+consultado_em = "AAAA-MM-DD"
+entrada = 0
+saida = 0
+cache = 0
