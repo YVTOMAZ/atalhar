@@ -12,6 +12,7 @@ from .detect import detectar, parse_ts
 from .estimate import estimar
 from .fingerprint import fingerprint, sanitize_url
 from .ledger import db_path, init_db, log_execucao, redact_nota
+from .hardware import carregar_inventario, resolver_inventario
 from .importers.opencode import import_opencode
 from .precos import carregar_precos
 
@@ -351,6 +352,36 @@ def cmd_estimate(args):
     return 0
 
 
+def cmd_route(args):
+    # `atalhar route` sem sub-subcomando: ajuda + codigo 2
+    print("uso: atalhar route {inventariar}", file=sys.stderr)
+    return 2
+
+
+def cmd_route_inventariar(args):
+    caminho = getattr(args, "inventario", None)
+    try:
+        inv = resolver_inventario(caminho, os.environ)
+    except Exception as e:
+        print(f"erro: inventario invalido: {e}", file=sys.stderr)
+        return 2
+    if not isinstance(inv, dict):
+        print("erro: inventario invalido", file=sys.stderr)
+        return 2
+    inv = dict(inv)
+    inv["aviso"] = "recomendacao, nao medicao"
+    if getattr(args, "json", False):
+        print(json.dumps(inv, ensure_ascii=False, sort_keys=True, indent=2))
+        return 0
+    hw = inv.get("hardware", {}) or {}
+    print(f"origem: {inv.get('origem')}")
+    print(f"hardware: {hw}")
+    modelos = inv.get("modelos_instalados", []) or []
+    print(f"modelos_instalados: {', '.join(modelos)}")
+    print("aviso: recomendacao, nao medicao")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="atalhar", description="Atalhar: a IA para de repetir o caminho caro.")
     parser.add_argument("--version", action="version", version=__version__)
@@ -406,6 +437,14 @@ def main(argv=None):
     p_est.add_argument("--ate", dest="ate", default=None)
     p_est.add_argument("--json", action="store_true")
     p_est.set_defaults(func=cmd_estimate)
+
+    p_route = sub.add_parser("route", help="Planeja por fase a partir do hardware (T1: inventariar).")
+    route_sub = p_route.add_subparsers(dest="route_cmd")
+    p_inv = route_sub.add_parser("inventariar", help="Inventario declarativo de hardware e modelos instalados.")
+    p_inv.add_argument("--inventario", dest="inventario", default=None)
+    p_inv.add_argument("--json", action="store_true")
+    p_inv.set_defaults(func=cmd_route_inventariar)
+    p_route.set_defaults(func=cmd_route)
 
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):
