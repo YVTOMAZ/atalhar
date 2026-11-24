@@ -1,0 +1,15 @@
+# inventario.example.toml — dados sintéticos
+[hardware]
+ram_total_gb = 16
+vram_gb = 0
+cpu_nucleos = 8
+backend = "cpu"
+memoria_unificada = false
+
+[modelos."qwen2.5-coder:7b"]
+instalado = true
+especialidade = "codigo"
+
+[modelos."gemma4"]
+instalado = true
+especialidade = "geral"
