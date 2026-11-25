@@ -382,6 +382,45 @@ def cmd_route_inventariar(args):
     return 0
 
 
+def cmd_check(args):
+    from .check import check
+
+    try:
+        res = check(
+            args.alvo,
+            tipo=getattr(args, "tipo", None),
+            sem_rede=getattr(args, "sem_rede", False),
+            catalogo=getattr(args, "catalogo", None),
+        )
+    except Exception as e:
+        print(f"erro: {e}", file=sys.stderr)
+        return 2
+
+    if getattr(args, "json", False):
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0
+
+    print(f"alvo: {res['alvo']}")
+    print(f"degrau: {res['degrau']}")
+    f = res.get("ferramenta")
+    if f:
+        print(f"ferramenta: {f['comando']} ({'instalada' if f['instalada'] else 'nao instalada'})")
+        print(f"doc: {f['doc']}")
+    sinais = res.get("sinais") or []
+    if sinais:
+        print("sinais:")
+        for s in sinais:
+            print(f"  - {s['tipo']}: {s['url']}")
+    robots = res.get("robots")
+    if robots is not None:
+        print(f"robots: permitido={robots.get('permitido')}, crawl_delay={robots.get('crawl_delay')}, status={robots.get('status_http')}")
+    print(f"requisicoes: {res['requisicoes']}")
+    if res.get("motivo"):
+        print(f"motivo: {res['motivo']}")
+    print(f"proximo passo: {res['proximo_passo']}")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="atalhar", description="Atalhar: a IA para de repetir o caminho caro.")
     parser.add_argument("--version", action="version", version=__version__)
@@ -445,6 +484,14 @@ def main(argv=None):
     p_inv.add_argument("--json", action="store_true")
     p_inv.set_defaults(func=cmd_route_inventariar)
     p_route.set_defaults(func=cmd_route)
+
+    p_check = sub.add_parser("check", help="Verifica se existe caminho mais barato antes de gastar.")
+    p_check.add_argument("alvo")
+    p_check.add_argument("--tipo", dest="tipo", choices=["navegar", "raspar", "consultar", "api", "comando"], default=None)
+    p_check.add_argument("--sem-rede", dest="sem_rede", action="store_true")
+    p_check.add_argument("--catalogo", dest="catalogo", default=None)
+    p_check.add_argument("--json", action="store_true")
+    p_check.set_defaults(func=cmd_check)
 
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):

@@ -21,3 +21,6 @@ atalhar = "atalhar.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["atalhar*"]
+
+[tool.setuptools.package-data]
+atalhar = ["dados/*.toml"]

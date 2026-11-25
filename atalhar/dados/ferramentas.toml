@@ -1,0 +1,38 @@
+# atalhar/dados/ferramentas.toml — conferido em 2026-11-25 (BRT)
+# Catálogo de ferramentas existentes (degrau "ferramenta" do `atalhar check`).
+# Listas como string separada por vírgula (compatível com o leitor mínimo do Python 3.10).
+
+[ferramenta.gh]
+comando = "gh"
+hosts = "github.com,api.github.com"
+tipos = "api,consultar"
+doc = "https://cli.github.com/manual/"
+exemplo = "gh api repos/{dono}/{repo}/pulls --jq '.[].title'"
+
+[ferramenta.curl]
+comando = "curl"
+hosts = ""
+tipos = "navegar,raspar,consultar,api,comando"
+doc = "https://curl.se/docs/manpage.html"
+exemplo = "curl -sS https://exemplo.test/feed.xml"
+
+[ferramenta.jq]
+comando = "jq"
+hosts = ""
+tipos = "consultar"
+doc = "https://jqlang.org/manual/"
+exemplo = "jq '.items[] | .name'"
+
+[ferramenta.yt-dlp]
+comando = "yt-dlp"
+hosts = ""
+tipos = "navegar,raspar"
+doc = "https://github.com/yt-dlp/yt-dlp"
+exemplo = "yt-dlp --dump-json 'https://www.youtube.com/watch?v=ID'"
+
+[ferramenta.pandoc]
+comando = "pandoc"
+hosts = ""
+tipos = "comando"
+doc = "https://pandoc.org/MANUAL.html"
+exemplo = "pandoc entrada.md -o saida.pdf"
