@@ -11,6 +11,7 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - `atalhar detect`: lista tarefas repetidas e caras do livro-caixa (somente leitura), com `docs/calibracao.md`.
 - `atalhar estimate`: estimativa de economia em tokens (cenarios de quebra, retorno, dinheiro opcional via `precos.toml`) e `precos.example.toml`.
 - `atalhar route inventariar`: inventario declarativo de hardware/modelos com sonda minima (base do plano por fase).
+- `atalhar check`: escada ferramenta existente -> dado estruturado -> robots.txt -> script -> IA, sem rede nos testes.
 ### Fixed
 - Saida de texto do `estimate` exibe percentual do cenario corretamente (10%, 30%) e tokens inteiros.
 - `estimate` retorna codigo 2 quando `--precos` aponta para arquivo invalido ou modelo inexistente.

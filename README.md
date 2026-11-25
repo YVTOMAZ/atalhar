@@ -23,3 +23,13 @@ a1b2c3d4e5f6  consultar   https://api/x/items   3     1         15.0      45
 ```bash
 atalhar route inventariar --inventario inventario.example.toml --json
 ```
+
+## Verificar antes de gastar
+
+`atalhar check <alvo>` percorre a escada "existe caminho mais barato?" (ferramenta existente -> dado estruturado -> robots.txt -> gerar script -> IA) e para no primeiro degrau que resolve. Nunca contorna bloqueio.
+
+```bash
+atalhar check https://exemplo.test/produtos --json
+```
+
+Degraus: `ferramenta`, `dado_estruturado`, `gerar_script`, `ia`. O `check` nao escreve no livro-caixa.
