@@ -84,6 +84,26 @@ def test_sinal_sitemap():
     assert r["sinais"] == [{"tipo": "sitemap", "url": "https://exemplo.test/sitemap.xml"}]
 
 
+def test_sinal_sitemap_relativo():
+    def buscador(url, headers):
+        if url.endswith("/robots.txt"):
+            return (200, {}, b"User-agent: *\nDisallow:\nSitemap: /sitemap.xml\n")
+        return (200, {"Content-Type": "text/html"}, b"<html></html>")
+
+    r = check("https://exemplo.test/produtos", buscador=buscador)
+    assert r["sinais"] == [{"tipo": "sitemap", "url": "https://exemplo.test/sitemap.xml"}]
+
+
+def test_sinal_sitemap_protocol_relative():
+    def buscador(url, headers):
+        if url.endswith("/robots.txt"):
+            return (200, {}, b"User-agent: *\nDisallow:\nSitemap: //cdn.exemplo.test/sitemap.xml\n")
+        return (200, {"Content-Type": "text/html"}, b"<html></html>")
+
+    r = check("https://exemplo.test/produtos", buscador=buscador)
+    assert r["sinais"] == [{"tipo": "sitemap", "url": "https://cdn.exemplo.test/sitemap.xml"}]
+
+
 def test_robots_disallow_ia():
     def buscador(url, headers):
         if url.endswith("/robots.txt"):
