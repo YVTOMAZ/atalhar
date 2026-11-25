@@ -453,7 +453,7 @@ def check(alvo, *, buscador=None, catalogo=None, agora=None, sem_rede=False, tip
     sinais = []
     if body_r:
         for sm in _site_maps_from_body(body_r):
-            sinais.append({"tipo": "sitemap", "url": sanitize_url(sm)})
+            sinais.append({"tipo": "sitemap", "url": sanitize_url(urllib.parse.urljoin(robots_url, sm))})
 
     # se nao permitido, nao busca a pagina
     if not permitido:
