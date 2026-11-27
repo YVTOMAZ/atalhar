@@ -37,14 +37,6 @@ CREATE TABLE IF NOT EXISTS nunca (
 """
 
 
-def _conn(conn):
-    if conn is None:
-        conn = _ledger_connect()
-    conn.executescript(SCHEMA_PROPOSTAS)
-    conn.commit()
-    return conn
-
-
 def _parse_agora(agora):
     if agora is None:
         return datetime.now(timezone.utc)
@@ -342,27 +334,6 @@ def _build_result_base(pid, fp, tipo, alvo, agora, estado, caminho, robots, est,
         "origem": origem,
     }
 
-    # store tokens_medios as number? keep int or string. dados uses int
-    dados = {
-        "id": pid,
-        "estado": estado,
-        "impressao_digital": fp,
-        "tipo": tipo,
-        "alvo": alvo,
-        "caminho": caminho,
-        "robots": robots,
-        "dias": dias,
-        "ocorrencias": ocorrencias,
-        "tokens_medios": (int(round(float(custo_ia_exec))) if custo_ia_exec is not None else "sem medição"),
-        "custo_ia_exec": custo_ia_exec,
-        "tokens_criacao": tokens_criacao,
-        "economia_semana_tokens": economia_semana_tokens_out,
-        "retorno_execucoes": (int(round(float(retorno_execucoes))) if retorno_execucoes is not None else "sem medição"),
-        "pct_cota": pct_cota,
-        "cenarios": cenarios_va,
-        "check_arquivo": check_arquivo,
-    }
-
     criado = agora_iso
     # if existing, keep criado? We'll set criado_em from db when loading; here for new.
 
@@ -398,70 +369,6 @@ def _build_result_base(pid, fp, tipo, alvo, agora, estado, caminho, robots, est,
     if extra:
         result.update(extra)
     return result
-
-
-def propor(candidato, *, estimativa=None, check=None, agora=None, repropor=False, conn=None):
-    if not isinstance(candidato, dict):
-        raise ValueError("candidato deve ser dict")
-    agora_dt = _parse_agora(agora)
-
-    fp = candidato.get("impressao_digital")
-    if not fp:
-        raise ValueError("candidato sem impressao_digital")
-    tipo = candidato.get("tipo")
-    alvo = sanitize_url(candidato.get("alvo") or "")
-
-    # tokens
-    tokens_atalho = None
-    if isinstance(candidato, dict):
-        tokens_atalho = candidato.get("tokens_atalho")
-    # prefer estimativa? no
-
-    # dias: try candidate or default 14
-    dias = 14
-    if isinstance(candidato, dict) and candidato.get("dias") is not None:
-        try:
-            dias = int(candidato.get("dias"))
-        except (TypeError, ValueError):
-            dias = 14
-
-    if estimativa is None:
-        from .estimate import estimar
-
-        try:
-            estimativa = estimar(candidato, dias=dias, tokens_atalho=tokens_atalho)
-        except Exception:
-            estimativa = None
-
-    tokens_criacao = None
-    if isinstance(candidato, dict):
-        tokens_criacao = candidato.get("tokens_criacao")
-    # allow override from estimativa? no
-
-    # check normalize
-    if isinstance(check, dict):
-        if "arquivo" not in check:
-            check = dict(check)
-
-    pid = id_de(fp)
-
-    conn = _conn(conn)
-    own = False
-    # track ownership: if conn was None originally, close at end
-    # We created conn via _conn (may be new). Need know if we should close.
-    # _conn returns same conn passed or new. We'll close only if not provided by caller.
-    close_at_end = conn is not None and False
-    # simpler: caller passes conn; if None we opened. Track:
-    opened_here = False
-    # _conn doesn't tell; restructure:
-    pass
-
-    # We'll handle connection ownership by checking a flag set before
-    # Re-open logic: redo cleanly
-    pass
-
-    # Actually redo: 
-    return _propor_impl(candidato, estimativa, check, agora_dt, repropor, fp, tipo, alvo, dias, tokens_atalho, tokens_criacao, pid, conn)
 
 
 def _garantir_campos_contrato(stored, pid, fp, tipo, alvo, estado, row=None):
@@ -708,7 +615,6 @@ def _propor_impl(candidato, estimativa, check, agora_dt, repropor, fp, tipo, alv
     return result
 
 
-# Fix propor to delegate to impl and manage connection ownership
 def propor(candidato, *, estimativa=None, check=None, agora=None, repropor=False, conn=None):
     if not isinstance(candidato, dict):
         raise ValueError("candidato deve ser dict")
@@ -758,10 +664,6 @@ def propor(candidato, *, estimativa=None, check=None, agora=None, repropor=False
     finally:
         if opened_here:
             conn.close()
-
-
-# patch _build_result_base to store _dados already? It stores result["_dados"]=dados. Good.
-# But early approved/recusada returns stored (no _dados). Fine.
 
 
 def decidir(id, decisao, *, nota=None, agora=None, revogar_nunca=False, conn=None):
