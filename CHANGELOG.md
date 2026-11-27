@@ -12,6 +12,7 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - `atalhar estimate`: estimativa de economia em tokens (cenarios de quebra, retorno, dinheiro opcional via `precos.toml`) e `precos.example.toml`.
 - `atalhar route inventariar`: inventario declarativo de hardware/modelos com sonda minima (base do plano por fase).
 - `atalhar check`: escada ferramenta existente -> dado estruturado -> robots.txt -> script -> IA, sem rede nos testes.
+- `atalhar propose` e `atalhar decide`: proposta no modelo 5.3 com vantagem estimada e origem dos numeros, registro de decisoes e lista 'nunca' por alvo; sem 'sim' nada e criado.
 ### Fixed
 - Saida de texto do `estimate` exibe percentual do cenario corretamente (10%, 30%) e tokens inteiros.
 - `estimate` retorna codigo 2 quando `--precos` aponta para arquivo invalido ou modelo inexistente.

@@ -1,0 +1,12 @@
+{
+  "impressao_digital": "fp1",
+  "tipo": "consultar",
+  "alvo": "https://api.exemplo.test/itens",
+  "ocorrencias": 5,
+  "dias_distintos": 5,
+  "primeira": "2026-11-13T10:00:00Z",
+  "ultima": "2026-11-17T10:00:00Z",
+  "tokens_entrada_medio": 1200,
+  "tokens_saida_medio": 40,
+  "tokens_cache_medio": 0
+}

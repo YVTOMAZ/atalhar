@@ -33,3 +33,26 @@ atalhar check https://exemplo.test/produtos --json
 ```
 
 Degraus: `ferramenta`, `dado_estruturado`, `gerar_script`, `ia`. O `check` nao escreve no livro-caixa.
+
+## Perguntar antes de criar
+
+`atalhar propose` transforma um candidato repetido (do `detect`/`estimate`) e, se houver, o resultado do `check` em uma proposta em portugues (modelo 5.3) com vantagem estimada e origem dos numeros. `atalhar decide <id> sim|nao|depois|nunca` grava a resposta do usuario. Sem "sim", nada e criado. O agente nunca decide por voce.
+
+```bash
+atalhar propose --stdin --tokens-atalho 150 --tokens-criacao 4000 --json < candidato.json
+atalhar decide p-3f9a1c2b7d4e sim --json
+```
+
+Exemplo de texto (modelo 5.3, sem emojis):
+
+```
+Percebi que repeti esta acao 5 vezes em 14 dias: consultar em api.exemplo.test.
+Cada vez a IA gasta cerca de 1240 tokens.
+Caminho mais barato: script novo.
+Economia estimada: ~12345 tokens por semana (cenarios de quebra: 0%: 12345, 10%: 11000).
+Custo unico para criar: ~4000 tokens. Retorno em ~4 execucoes.
+Riscos: o site pode mudar; robots.txt: permitido; vou comparar com 3 resultados que a IA ja entregou.
+Posso seguir? (sim / nao / depois / nunca para este alvo)
+```
+
+Decisoes: `sim` (aprova, proximo passo `atalhar scaffold <id>`), `nao` (bloqueia 30 dias), `depois` (repropoe apos 7 dias), `nunca` (bloqueia o alvo para sempre, revogavel com `--revogar-nunca`). `pode_criar(id)` e True apenas com `sim`. A lista `nunca` e por alvo sanitizado. Nenhuma rede e nenhum arquivo alem do `atalhar.db` e criado.

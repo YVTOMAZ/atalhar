@@ -1,0 +1,11 @@
+{
+  "alvo": "https://api.exemplo.test/itens",
+  "degrau": "ferramenta",
+  "ferramenta": {"nome": "gh", "comando": "gh", "instalada": true, "doc": "https://cli.github.com/manual/", "exemplo": "gh issue list"},
+  "sinais": [],
+  "robots": null,
+  "requisicoes": 0,
+  "proximo_passo": "usar a ferramenta instalada",
+  "motivo": null,
+  "versao": "0.1.0"
+}
