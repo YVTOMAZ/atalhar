@@ -394,7 +394,7 @@ def _build_result_base(pid, fp, tipo, alvo, agora, estado, caminho, robots, est,
     text = texto_proposta(result)
     result["pergunta_ao_usuario"] = text
     # also store dados_json
-    result["_dados"] = dados
+    result["_dados"] = {k: v for k, v in result.items() if k != "_dados"}
     if extra:
         result.update(extra)
     return result
@@ -462,6 +462,73 @@ def propor(candidato, *, estimativa=None, check=None, agora=None, repropor=False
 
     # Actually redo: 
     return _propor_impl(candidato, estimativa, check, agora_dt, repropor, fp, tipo, alvo, dias, tokens_atalho, tokens_criacao, pid, conn)
+
+
+def _garantir_campos_contrato(stored, pid, fp, tipo, alvo, estado, row=None):
+    if not isinstance(stored, dict):
+        stored = {}
+    stored.setdefault("id", pid)
+    stored["estado"] = estado
+    stored.setdefault("impressao_digital", fp)
+    stored.setdefault("tipo", tipo)
+    stored.setdefault("alvo", alvo)
+    stored.setdefault("opcoes", ["sim", "nao", "depois", "nunca"])
+    stored.setdefault("comando_decisao", f"atalhar decide {pid} <sim|nao|depois|nunca>")
+    stored.setdefault("robots", {"permitido": None} if not isinstance(stored.get("robots"), dict) else stored.get("robots"))
+    if not isinstance(stored.get("robots"), dict):
+        stored["robots"] = {"permitido": None}
+    stored.setdefault("caminho", "sem medição")
+    stored.setdefault("pergunta_ao_usuario", None)
+    if not stored.get("pergunta_ao_usuario"):
+        try:
+            stored["pergunta_ao_usuario"] = texto_proposta(stored)
+        except Exception:
+            pass
+
+    criado = None
+    atualizado = None
+    if row is not None:
+        try:
+            criado = row["criado_em"]
+        except Exception:
+            criado = None
+        try:
+            atualizado = row["atualizado_em"]
+        except Exception:
+            atualizado = None
+    if criado is None:
+        criado = stored.get("criado_em")
+    if atualizado is None:
+        atualizado = stored.get("atualizado_em")
+    if criado is None:
+        criado = atualizado
+    if atualizado is None:
+        atualizado = criado
+    stored.setdefault("criado_em", criado)
+    stored.setdefault("atualizado_em", atualizado)
+    stored.setdefault("versao", __version__)
+
+    va = stored.get("vantagem_estimada")
+    if not isinstance(va, dict):
+        va = {
+            "economia_semana_tokens": stored.get("economia_semana_tokens", "sem medição"),
+            "retorno_execucoes": stored.get("retorno_execucoes", "sem medição"),
+            "pct_cota": stored.get("pct_cota", None),
+            "cenarios": stored.get("cenarios", []) if isinstance(stored.get("cenarios"), list) else [],
+            "origem": {},
+        }
+        stored["vantagem_estimada"] = va
+    else:
+        if not isinstance(va.get("origem"), dict):
+            va["origem"] = {}
+        va.setdefault("economia_semana_tokens", stored.get("economia_semana_tokens", "sem medição"))
+        va.setdefault("retorno_execucoes", stored.get("retorno_execucoes", "sem medição"))
+        va.setdefault("pct_cota", stored.get("pct_cota", None))
+        if not isinstance(va.get("cenarios"), list):
+            va["cenarios"] = stored.get("cenarios", []) if isinstance(stored.get("cenarios"), list) else []
+        else:
+            va.setdefault("cenarios", stored.get("cenarios", []) if isinstance(stored.get("cenarios"), list) else [])
+    return stored
 
 
 def _propor_impl(candidato, estimativa, check, agora_dt, repropor, fp, tipo, alvo, dias, tokens_atalho, tokens_criacao, pid, conn):
@@ -538,9 +605,7 @@ def _propor_impl(candidato, estimativa, check, agora_dt, repropor, fp, tipo, alv
                 stored = json.loads(row_p["dados_json"])
             except Exception:
                 stored = {}
-            stored["estado"] = "aprovada"
-            stored.setdefault("id", pid)
-            # ensure pergunta
+            stored = _garantir_campos_contrato(stored, pid, fp, tipo, alvo, "aprovada", row_p)
             if not stored.get("pergunta_ao_usuario"):
                 stored["pergunta_ao_usuario"] = texto_proposta(stored)
             return stored
@@ -552,8 +617,7 @@ def _propor_impl(candidato, estimativa, check, agora_dt, repropor, fp, tipo, alv
                     stored = json.loads(row_p["dados_json"])
                 except Exception:
                     stored = {}
-                stored["estado"] = "recusada"
-                stored.setdefault("id", pid)
+                stored = _garantir_campos_contrato(stored, pid, fp, tipo, alvo, "recusada", row_p)
                 if not stored.get("pergunta_ao_usuario"):
                     stored["pergunta_ao_usuario"] = texto_proposta(stored)
                 return stored
@@ -566,7 +630,7 @@ def _propor_impl(candidato, estimativa, check, agora_dt, repropor, fp, tipo, alv
                     stored = json.loads(row_p["dados_json"])
                 except Exception:
                     stored = {}
-                stored["estado"] = "adiada"
+                stored = _garantir_campos_contrato(stored, pid, fp, tipo, alvo, "adiada", row_p)
                 # add reabertura date
                 try:
                     from datetime import timedelta
@@ -576,7 +640,6 @@ def _propor_impl(candidato, estimativa, check, agora_dt, repropor, fp, tipo, alv
                     stored["reabre_em"] = reopen.isoformat()
                 except Exception:
                     pass
-                stored.setdefault("id", pid)
                 if not stored.get("pergunta_ao_usuario"):
                     stored["pergunta_ao_usuario"] = texto_proposta(stored)
                 return stored
@@ -610,6 +673,7 @@ def _propor_impl(candidato, estimativa, check, agora_dt, repropor, fp, tipo, alv
         result = _build_result_base(
             pid, fp, tipo, alvo, agora_dt, "sem_caminho", caminho, robots, estimativa, check, candidato, dias, tokens_atalho, tokens_criacao
         )
+        result.pop("_dados", None)
         result["motivo"] = motivo_sc
         result["pergunta_ao_usuario"] = motivo_sc
         return result
@@ -620,13 +684,16 @@ def _propor_impl(candidato, estimativa, check, agora_dt, repropor, fp, tipo, alv
     )
 
     # upsert db
-    dados_json = json.dumps(result.get("_dados", {}), ensure_ascii=False)
-    # remove _dados from result
-    result.pop("_dados", None)
     criado_iso = agora_dt.isoformat()
     existing = conn.execute("SELECT criado_em FROM propostas WHERE impressao_digital=?", (fp,)).fetchone()
     if existing is not None:
         criado_iso = existing["criado_em"]
+    result["criado_em"] = criado_iso
+    result["atualizado_em"] = agora_dt.isoformat()
+    clean = {k: v for k, v in result.items() if k != "_dados"}
+    result["_dados"] = clean
+    dados_json = json.dumps(clean, ensure_ascii=False)
+    result.pop("_dados", None)
     conn.execute(
         """INSERT INTO propostas (id, impressao_digital, tipo, alvo, estado, criado_em, atualizado_em, dados_json)
            VALUES (?,?,?,?,?,?,?,?)

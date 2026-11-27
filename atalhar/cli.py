@@ -108,8 +108,8 @@ def cmd_detect(args):
 
     p = db_path()
     if not p.exists():
-        print("livro-caixa vazio: rode 'atalhar import' ou 'atalhar log'")
-        return 0
+        print("erro: livro-caixa vazio: rode atalhar import ou atalhar log", file=sys.stderr)
+        return 2
     conn = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     try:
@@ -235,7 +235,7 @@ def _resolver_candidato(args):
                 return None, None
         p = db_path()
         if not p.exists():
-            print("livro-caixa vazio: rode 'atalhar import' ou 'atalhar log'")
+            print("erro: livro-caixa vazio: rode atalhar import ou atalhar log", file=sys.stderr)
             return None, None
         conn = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
         conn.row_factory = sqlite3.Row

@@ -175,8 +175,8 @@ def test_read_only_no_db_and_unchanged(tmp_path, monkeypatch):
     env = {**os.environ, "ATALHAR_HOME": str(home)}
     proc = subprocess.run([sys.executable, "-m", "atalhar", "detect"],
                           capture_output=True, text=True, env=env)
-    assert proc.returncode == 0
-    assert "livro-caixa vazio" in proc.stdout
+    assert proc.returncode == 2
+    assert "livro-caixa vazio" in proc.stderr
     assert not db_file.exists()
 
     # with db, content unchanged
