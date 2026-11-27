@@ -15,6 +15,7 @@ from .ledger import db_path, init_db, log_execucao, redact_nota
 from .hardware import carregar_inventario, resolver_inventario
 from .importers.opencode import import_opencode
 from .precos import carregar_precos
+from .propose import propor, decidir, pode_criar, texto_proposta
 
 
 def cmd_version(args):
@@ -190,6 +191,72 @@ def _resolver_precos(args, home_env=None):
     return pm, moeda, cota
 
 
+def _resolver_candidato(args):
+    cand = None
+    agora = None
+    if getattr(args, "stdin", False):
+        raw = sys.stdin.read().strip()
+        if not raw:
+            print("erro: stdin vazio", file=sys.stderr)
+            return None, None
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            print("erro: stdin nao e JSON valido", file=sys.stderr)
+            return None, None
+        if isinstance(data, dict) and "candidatos" in data:
+            cands = data["candidatos"]
+            if getattr(args, "impressao_digital", None):
+                for c in cands:
+                    if c.get("impressao_digital") == args.impressao_digital:
+                        cand = c
+                        break
+            if cand is None and cands:
+                cand = cands[0]
+        elif isinstance(data, list):
+            cand = data[0] if data else None
+        elif isinstance(data, dict):
+            cand = data
+        if cand is None:
+            print("erro: candidato nao encontrado no stdin", file=sys.stderr)
+            return None, None
+    else:
+        if not getattr(args, "impressao_digital", None):
+            print("erro: impressao_digital obrigatoria (ou use --stdin)", file=sys.stderr)
+            return None, None
+        if getattr(args, "ate", None) is None:
+            agora = datetime.now(timezone.utc)
+        else:
+            from .detect import parse_ts as _pts
+
+            agora = _pts(args.ate)
+            if agora is None:
+                print("erro: --ate invalido (use ISO 8601)", file=sys.stderr)
+                return None, None
+        p = db_path()
+        if not p.exists():
+            print("livro-caixa vazio: rode 'atalhar import' ou 'atalhar log'")
+            return None, None
+        conn = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute("SELECT * FROM execucoes").fetchall()
+        finally:
+            conn.close()
+        from .detect import detectar
+
+        res = detectar(rows, agora, n=1, dias=getattr(args, "dias", 14),
+                       incluir_cache=getattr(args, "incluir_cache", False))
+        for c in res.get("candidatos", []):
+            if c.get("impressao_digital") == args.impressao_digital:
+                cand = c
+                break
+        if cand is None:
+            print(f"erro: impressao digital nao encontrada: {args.impressao_digital}", file=sys.stderr)
+            return None, None
+    return cand, agora
+
+
 def cmd_estimate(args):
     # cenarios
     try:
@@ -210,63 +277,9 @@ def cmd_estimate(args):
         return 2
 
     # resolver candidato
-    cand = None
-    if args.stdin:
-        raw = sys.stdin.read().strip()
-        if not raw:
-            print("erro: stdin vazio", file=sys.stderr)
-            return 2
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            print("erro: stdin nao e JSON valido", file=sys.stderr)
-            return 2
-        if isinstance(data, dict) and "candidatos" in data:
-            cands = data["candidatos"]
-            if args.impressao_digital:
-                for c in cands:
-                    if c.get("impressao_digital") == args.impressao_digital:
-                        cand = c
-                        break
-            if cand is None and cands:
-                cand = cands[0]
-        elif isinstance(data, list):
-            cand = data[0] if data else None
-        elif isinstance(data, dict):
-            cand = data
-        if cand is None:
-            print("erro: candidato nao encontrado no stdin", file=sys.stderr)
-            return 2
-    else:
-        if not args.impressao_digital:
-            print("erro: impressao_digital obrigatoria (ou use --stdin)", file=sys.stderr)
-            return 2
-        if args.ate is None:
-            agora = datetime.now(timezone.utc)
-        else:
-            agora = parse_ts(args.ate)
-            if agora is None:
-                print("erro: --ate invalido (use ISO 8601)", file=sys.stderr)
-                return 2
-        p = db_path()
-        if not p.exists():
-            print("livro-caixa vazio: rode 'atalhar import' ou 'atalhar log'")
-            return 2
-        conn = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
-        conn.row_factory = sqlite3.Row
-        try:
-            rows = conn.execute("SELECT * FROM execucoes").fetchall()
-        finally:
-            conn.close()
-        res = detectar(rows, agora, n=1, dias=args.dias,
-                       incluir_cache=args.incluir_cache)
-        for c in res.get("candidatos", []):
-            if c.get("impressao_digital") == args.impressao_digital:
-                cand = c
-                break
-        if cand is None:
-            print(f"erro: impressao digital nao encontrada: {args.impressao_digital}", file=sys.stderr)
-            return 2
+    cand, agora = _resolver_candidato(args)
+    if cand is None:
+        return 2
 
     # tokens
     tokens_atalho = args.tokens_atalho
@@ -421,6 +434,181 @@ def cmd_check(args):
     return 0
 
 
+def cmd_propose(args):
+    # parse cenarios
+    try:
+        cenarios = [float(x.strip()) for x in str(args.cenarios).split(",") if x.strip() != ""]
+    except ValueError:
+        print("erro: --cenarios invalido", file=sys.stderr)
+        return 2
+    for q in cenarios:
+        if q < 0 or q >= 1:
+            print("erro: cenario deve estar em [0,1)", file=sys.stderr)
+            return 2
+    if not cenarios:
+        print("erro: --cenarios vazio", file=sys.stderr)
+        return 2
+    if args.dias < 1:
+        print("erro: --dias deve ser >= 1", file=sys.stderr)
+        return 2
+
+    cand, agora = _resolver_candidato(args)
+    if cand is None:
+        return 2
+
+    # tokens
+    tokens_atalho = args.tokens_atalho
+    if tokens_atalho is not None:
+        try:
+            tokens_atalho = int(tokens_atalho)
+        except (TypeError, ValueError):
+            print("erro: --tokens-atalho invalido", file=sys.stderr)
+            return 2
+        if tokens_atalho < 0:
+            print("erro: --tokens-atalho deve ser >= 0", file=sys.stderr)
+            return 2
+
+    tokens_criacao = args.tokens_criacao
+    tokens_reparo = args.tokens_reparo
+    if tokens_criacao is not None:
+        try:
+            tokens_criacao = int(tokens_criacao)
+        except (TypeError, ValueError):
+            print("erro: --tokens-criacao invalido", file=sys.stderr)
+            return 2
+    if tokens_reparo is not None:
+        try:
+            tokens_reparo = int(tokens_reparo)
+        except (TypeError, ValueError):
+            print("erro: --tokens-reparo invalido", file=sys.stderr)
+            return 2
+
+    if args.precos is not None and not os.path.exists(args.precos):
+        print(f"erro: arquivo de precos nao encontrado: {args.precos}", file=sys.stderr)
+        return 2
+    pm, moeda, cota = _resolver_precos(args)
+    if args.precos is not None and pm is None and cota is None:
+        return 2
+
+    # agora for stdin
+    if agora is None:
+        if args.ate is not None:
+            from .detect import parse_ts
+
+            agora = parse_ts(args.ate)
+            if agora is None:
+                print("erro: --ate invalido (use ISO 8601)", file=sys.stderr)
+                return 2
+        else:
+            agora = datetime.now(timezone.utc)
+
+    # attach tokens to candidate (copy)
+    cand = dict(cand)
+    cand["tokens_atalho"] = tokens_atalho
+    cand["tokens_criacao"] = tokens_criacao
+    cand["dias"] = args.dias
+
+    # estimar
+    from .estimate import estimar
+
+    try:
+        est = estimar(
+            cand,
+            dias=args.dias,
+            tokens_atalho=tokens_atalho,
+            tokens_criacao=tokens_criacao,
+            tokens_reparo=tokens_reparo,
+            precos_modelo=pm,
+            cota_semanal_tokens=cota,
+            cenarios=tuple(cenarios),
+            incluir_cache=args.incluir_cache,
+        )
+    except ValueError as e:
+        print(f"erro: {e}", file=sys.stderr)
+        return 2
+
+    # check
+    check_obj = None
+    if args.check:
+        try:
+            with open(args.check, "r", encoding="utf-8") as f:
+                check_obj = json.load(f)
+        except Exception as e:
+            print(f"erro: JSON do check invalido: {e}", file=sys.stderr)
+            return 2
+        if not isinstance(check_obj, dict):
+            print("erro: JSON do check invalido", file=sys.stderr)
+            return 2
+        check_obj = dict(check_obj)
+        check_obj["arquivo"] = args.check
+
+    # propor
+    try:
+        res = propor(
+            cand,
+            estimativa=est,
+            check=check_obj,
+            agora=agora,
+            repropor=getattr(args, "repropor", False),
+        )
+    except ValueError as e:
+        print(f"erro: {e}", file=sys.stderr)
+        return 2
+
+    estado = res.get("estado")
+    code = 0 if estado in ("pendente", "aprovada") else 1
+    # motivo for sem_caminho etc printed? JSON includes.
+
+    if args.json:
+        # clean internal
+        res.pop("_dados", None)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return code
+
+    # texto
+    print(res.get("pergunta_ao_usuario", ""))
+    return code
+
+
+def cmd_decide(args):
+    decisao = args.decisao
+    # map não
+    idv = args.id
+    revogar = getattr(args, "revogar_nunca", False)
+    try:
+        res = decidir(
+            idv,
+            decisao,
+            nota=args.nota,
+            agora=getattr(args, "ate", None),
+            revogar_nunca=revogar,
+        )
+    except ValueError as e:
+        msg = str(e)
+        if "nao encontrada" in msg:
+            print(f"erro: proposta nao encontrada: {idv}", file=sys.stderr)
+        else:
+            print(f"erro: {msg}", file=sys.stderr)
+        return 2
+
+    estado = res.get("estado")
+    # revogar missing case
+    code = 0
+    if res.get("decisao") == "sim" and estado == "nunca" and not res.get("mudou", False):
+        code = 1
+        if res.get("motivo"):
+            print(res["motivo"], file=sys.stderr)
+
+    if args.json:
+        out = {k: v for k, v in res.items() if not k.startswith("_")}
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return code
+
+    print(f"{res['id']}: {res['estado']} (mudou={res['mudou']})")
+    print(f"proximo passo: {res['proximo_passo']}")
+    return code
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="atalhar", description="Atalhar: a IA para de repetir o caminho caro.")
     parser.add_argument("--version", action="version", version=__version__)
@@ -492,6 +680,31 @@ def main(argv=None):
     p_check.add_argument("--catalogo", dest="catalogo", default=None)
     p_check.add_argument("--json", action="store_true")
     p_check.set_defaults(func=cmd_check)
+
+    p_prop = sub.add_parser("propose", help="Propoe um atalho e pede decisao.")
+    p_prop.add_argument("impressao_digital", nargs="?")
+    p_prop.add_argument("--stdin", action="store_true")
+    p_prop.add_argument("--check", dest="check", default=None)
+    p_prop.add_argument("--tokens-atalho", dest="tokens_atalho", type=int, default=None)
+    p_prop.add_argument("--tokens-criacao", dest="tokens_criacao", type=int, default=None)
+    p_prop.add_argument("--tokens-reparo", dest="tokens_reparo", type=int, default=None)
+    p_prop.add_argument("--modelo", dest="modelo", default=None)
+    p_prop.add_argument("--precos", dest="precos", default=None)
+    p_prop.add_argument("--cenarios", dest="cenarios", default="0,0.1,0.3")
+    p_prop.add_argument("--dias", dest="dias", type=int, default=14)
+    p_prop.add_argument("--incluir-cache", dest="incluir_cache", action="store_true")
+    p_prop.add_argument("--ate", dest="ate", default=None)
+    p_prop.add_argument("--repropor", action="store_true")
+    p_prop.add_argument("--json", action="store_true")
+    p_prop.set_defaults(func=cmd_propose)
+
+    p_dec = sub.add_parser("decide", help="Registra a decisao do usuario sobre uma proposta.")
+    p_dec.add_argument("id")
+    p_dec.add_argument("decisao")
+    p_dec.add_argument("--nota", dest="nota", default=None)
+    p_dec.add_argument("--revogar-nunca", dest="revogar_nunca", action="store_true")
+    p_dec.add_argument("--json", action="store_true")
+    p_dec.set_defaults(func=cmd_decide)
 
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):

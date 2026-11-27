@@ -1,0 +1,11 @@
+{
+  "alvo": "https://api.exemplo.test/itens",
+  "degrau": "gerar_script",
+  "ferramenta": null,
+  "sinais": [],
+  "robots": {"permitido": true, "crawl_delay": null, "status_http": 200},
+  "requisicoes": 2,
+  "proximo_passo": "atalhar propose",
+  "motivo": null,
+  "versao": "0.1.0"
+}
